@@ -1,0 +1,174 @@
+:root {
+  --font-heading: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-body: 'Source Sans 3', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --bg-canvas: #F4F1EA;
+  --bg-surface: #FFFEFA;
+  --bg-active: #EAE4D7;
+  --border-color: #DCD7CC;
+  
+  --text-primary: #1D252A;
+  --text-secondary: #5A656E;
+  --text-muted: #83909C;
+
+  --color-primary: #2458A6;
+  --color-primary-hover: #1B4584;
+
+  --color-severe: #B83D38;
+  --color-severe-bg: #FBECEB;
+  --color-severe-text: #992B26;
+
+  --color-caution: #C98826;
+  --color-caution-bg: #FDF6E9;
+  --color-caution-text: #9A6514;
+
+  --color-safe: #3F7965;
+  --color-safe-bg: #EBF3F0;
+  --color-safe-text: #2B5949;
+
+  --color-scout: #0284C7;
+  --color-cargo: #EA580C;
+
+  --map-land: #D7DFD4;
+  --map-water: #9BC3CF;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+h1, h2, h3, h4, h5, h6, button, nav {
+  font-family: var(--font-heading);
+}
+
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom scrollbars for clean civic UI */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-canvas);
+}
+::-webkit-scrollbar-thumb {
+  background: #C8C2B5;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #AFA89A;
+}
+
+/* Civic UI utility classes */
+.civic-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.civic-button-primary {
+  background-color: var(--color-primary);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.civic-button-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.civic-button-secondary {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.civic-button-secondary:hover {
+  background-color: #F8F6F0;
+  border-color: #CBC5B8;
+}
+
+/* Badges */
+.badge-severe {
+  background-color: var(--color-severe-bg);
+  color: var(--color-severe-text);
+  border: 1px solid rgba(184, 61, 56, 0.25);
+  border-radius: 4px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.badge-caution {
+  background-color: var(--color-caution-bg);
+  color: var(--color-caution-text);
+  border: 1px solid rgba(201, 136, 38, 0.25);
+  border-radius: 4px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.badge-safe {
+  background-color: var(--color-safe-bg);
+  color: var(--color-safe-text);
+  border: 1px solid rgba(63, 121, 101, 0.25);
+  border-radius: 4px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+/* Pulsing beacon animation */
+@keyframes soft-pulse {
+  0% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.35); opacity: 0.35; }
+  100% { transform: scale(1); opacity: 0.9; }
+}
+
+.beacon-pulse {
+  animation: soft-pulse 2s infinite ease-in-out;
+}
+
+/* Cartographic map daylight styling - calm authoritative civic tone */
+.leaflet-tile-pane {
+  filter: saturate(0.65) contrast(0.95) brightness(1.03);
+}
+
