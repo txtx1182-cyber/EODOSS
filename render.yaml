@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: eodoss-authority-console
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /api/situation
+    envVars:
+      - key: PORT
+        value: 8000
