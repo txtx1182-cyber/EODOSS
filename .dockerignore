@@ -1,0 +1,7 @@
+**/node_modules
+**/dist
+**/package-lock.json
+.git
+.venv
+venv
+__pycache__

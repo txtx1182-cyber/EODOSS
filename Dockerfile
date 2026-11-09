@@ -4,8 +4,8 @@
 FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
 
-COPY frontend/package*.json ./
-RUN npm install
+COPY frontend/package.json ./
+RUN rm -f package-lock.json && npm install --legacy-peer-deps
 
 COPY frontend/ ./
 RUN npm run build
