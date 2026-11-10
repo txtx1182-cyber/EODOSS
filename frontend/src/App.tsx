@@ -11,6 +11,7 @@ import { ResqView } from './components/views/ResqView';
 import { SuppView } from './components/views/SuppView';
 import { SwarmView } from './components/views/SwarmView';
 import { AuditLogView } from './components/views/AuditLogView';
+import { ScaleTestModal } from './components/ScaleTestModal';
 
 export function App() {
   const [user, setUser] = useState<{ name: string; role: string; station: string } | null>(null);
@@ -19,6 +20,7 @@ export function App() {
   const [selectedEntity, setSelectedEntity] = useState<{ type: string; data: any } | null>(null);
   const [activeBoard, setActiveBoard] = useState<BoardType>(null);
   const [derived, setDerived] = useState<DerivedState | null>(null);
+  const [isScaleTestOpen, setIsScaleTestOpen] = useState(false);
 
   const fetchDerived = async () => {
     try {
@@ -485,6 +487,7 @@ export function App() {
         onReset={handleReset}
         user={user}
         onLogout={() => setUser(null)}
+        onOpenScaleTest={() => setIsScaleTestOpen(true)}
       />
 
       {/* Main Workspace (Height: calc(100vh - 60px)) */}
@@ -573,6 +576,12 @@ export function App() {
         boardType={activeBoard}
         onClose={() => setActiveBoard(null)}
         situation={situation}
+      />
+
+      {/* Headless Scale-Test Simulation Comparison Modal */}
+      <ScaleTestModal
+        isOpen={isScaleTestOpen}
+        onClose={() => setIsScaleTestOpen(false)}
       />
     </div>
   );

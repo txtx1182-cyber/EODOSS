@@ -13,6 +13,7 @@ from app.seed_data import get_initial_situation
 from app.orchestration import OrchestrationEngine
 from app.adapters import FEEDS, fetch_open_meteo
 from app.engine.recompute import derive, diff, audit_events
+from app.engine.simulation import run as run_simulation
 
 app = FastAPI(
     title="EODOSS Engine",
@@ -224,6 +225,20 @@ async def recompute_now():
     changes = diff(before, _derived)
     await broadcast_situation()
     return {"changes": changes, "counts": _derived["counts"]}
+
+@app.get("/api/engine/simulation")
+def get_simulation(seed: int = 7):
+    r = run_simulation(seed=seed)
+    return {
+        "seed": r["seed"],
+        "engine": r["engine"],
+        "baseline": r["baseline"],
+        "eta_improvement_pct": r["eta_improvement_pct"],
+        "coverage_delta_pct": r["coverage_delta_pct"],
+        "scores": {k: (v.to_dict() if hasattr(v, "to_dict") else vars(v) if hasattr(v, "__dict__") else v)
+                   for k, v in r["scores"].items()},
+        "engine_detail": r["engine_detail"],
+    }
 
 @app.websocket("/ws/live")
 async def websocket_endpoint(websocket: WebSocket):

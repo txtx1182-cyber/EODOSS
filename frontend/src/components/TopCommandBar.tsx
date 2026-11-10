@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { RotateCcw, User, Shield, Clock } from 'lucide-react';
+import { RotateCcw, User, Shield, Clock, Activity } from 'lucide-react';
 
 interface TopCommandBarProps {
   onReset: () => void;
   user: { name: string; role: string; station: string };
   onLogout: () => void;
+  onOpenScaleTest?: () => void;
 }
 
 export const TopCommandBar: React.FC<TopCommandBarProps> = ({
   onReset,
-  user
+  user,
+  onOpenScaleTest
 }) => {
   const [istStr, setIstStr] = useState('');
 
@@ -138,6 +140,32 @@ export const TopCommandBar: React.FC<TopCommandBarProps> = ({
           <span style={{ color: '#5A656E' }}>·</span>
           <span style={{ color: '#5A656E' }}>Local Authority</span>
         </div>
+
+        {/* Scale Benchmark Modal Trigger */}
+        {onOpenScaleTest && (
+          <button
+            onClick={onOpenScaleTest}
+            title="Open Headless Multi-Agent Scale Benchmark"
+            style={{
+              backgroundColor: '#FFFEFA',
+              border: '1px solid #DCD7CC',
+              color: '#2458A6',
+              padding: '5px 10px',
+              fontSize: 12,
+              fontFamily: 'var(--font-heading)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5
+            }}
+            className="civic-button-secondary"
+          >
+            <Activity size={12} />
+            <span>Scale Benchmark</span>
+          </button>
+        )}
 
         {/* Reset Button */}
         <button
