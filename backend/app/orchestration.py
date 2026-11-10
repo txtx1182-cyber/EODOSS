@@ -4,15 +4,28 @@ from typing import Dict, Any, List, Optional
 from app.models import (
     SharedSituationModel, AlertLifecycle, MissionApprovalState,
     MissionType, Mission, IncidentStatus, MutualAidState,
-    AuditEvent, RouteStatus, DroneStatus, RiskLevel, HazardTrend
+    AuditEvent, RouteStatus, DroneStatus, RiskLevel, HazardTrend,
+    PredictionInput
 )
+from app.engine.scoring import score_scene, access_at
+from app.engine.allocation import plan, tasks_from_incidents
 
 class OrchestrationEngine:
     def __init__(self, state: SharedSituationModel):
         self.state = state
+        self._generate_rescue_missions()
+
+    def _now(self) -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+    def _scores(self):
+        return score_scene(self.state.zones, self.state.routes, self.state.recent_inputs)
+
+    def _zone(self, zone_id: str):
+        return next((z for z in self.state.zones if z.id == zone_id), None)
 
     def add_audit(self, source: str, action: str, details: str, confidence: Optional[int] = 95, user: str = "LOCAL_AUTHORITY"):
-        now_str = datetime.now(timezone.utc).isoformat()
+        now_str = self._now()
         event = AuditEvent(
             id=f"AUD-{len(self.state.audit_log) + 1:03d}",
             timestamp=now_str,
@@ -108,33 +121,108 @@ class OrchestrationEngine:
         self._generate_rescue_missions()
 
     def _generate_rescue_missions(self):
-        # Check if rescue mission already exists
-        if not any(m.id == "MSN-RES-01" for m in self.state.missions):
-            now_str = datetime.now(timezone.utc).isoformat()
-            rescue_mission = Mission(
-                id="MSN-RES-01",
-                title="E-RESQ Amphibious Rescue: 14 Stranded Villagers at Chandrapur School",
+        """
+        Allocation-driven tasking. Replaces the previous hardcoded assignment of
+        RES-SDRF-BOAT-03 / RES-NDRF-01.
+        """
+        scores = self._scores()
+        tasks = tasks_from_incidents(self.state.incidents, scores)
+        if not tasks:
+            return self.state
+
+        result = plan(tasks, self.state.resources, scores, self.state.routes)
+
+        for assignment in result["assignments"]:
+            mission_id = f"MSN-{assignment['task_id']}"
+            planned = [r["resource_id"] for r in assignment["resources"]]
+            existing = next((m for m in self.state.missions if m.id == mission_id), None)
+
+            if existing is not None:
+                # Re-plan unapproved missions when the computed plan differs.
+                # Approved/active missions are frozen: a human already signed.
+                if existing.approval_state in (MissionApprovalState.PROPOSED,
+                                               MissionApprovalState.AWAITING_APPROVAL) \
+                        and planned and set(planned) != set(existing.assigned_resources):
+                    previous = list(existing.assigned_resources)
+                    existing.assigned_resources = planned
+                    existing.explanation.update({
+                        "evidence": assignment["reason"],
+                        "eta_min": assignment["worst_case_eta_min"],
+                        "coverage": assignment["coverage"],
+                        "needs_verification": assignment["needs_verification"],
+                        "replanned": True,
+                    })
+                    existing.status_notes = (
+                        f"Re-planned by allocation engine: ETA "
+                        f"{assignment['worst_case_eta_min']} min, coverage "
+                        f"{int(assignment['coverage'] * 100)}%. Awaiting Local Authority."
+                    )
+                    self.add_audit(
+                        "ORCHESTRATOR", "REPLAN_APPLIED",
+                        f"{mission_id} reassigned {previous} -> {planned}. "
+                        f"Reason: {assignment['reason']}", 90, "ORCHESTRATION_ENGINE",
+                    )
+                continue
+
+            zone = self._zone(assignment["zone_id"])
+            zscore = scores.get(assignment["zone_id"])
+            inc = next((i for i in self.state.incidents
+                        if i.id == assignment["task_id"]), None)
+            need = zscore.need if zscore else 0.0
+            priority = "URGENT" if need >= 75 else "HIGH" if need >= 55 else "MEDIUM"
+
+            self.state.missions.append(Mission(
+                id=mission_id,
+                title=f"E-RESQ Dispatch: {getattr(inc, 'title', assignment['task_id'])}",
                 type=MissionType.RESCUE_DISPATCH,
-                priority="URGENT",
-                target_zone_id="ZONE_F",
-                target_coords=[26.179, 91.824],
-                assigned_resources=["RES-SDRF-BOAT-03", "RES-NDRF-01"],
+                priority=priority,
+                target_zone_id=assignment["zone_id"],
+                target_coords=list(getattr(inc, "coords", [26.17, 91.75])),
+                assigned_resources=[r["resource_id"] for r in assignment["resources"]],
                 approval_state=MissionApprovalState.AWAITING_APPROVAL,
                 explanation={
-                    "evidence": "E-SCOUT-01 confirmed 14 persons on rooftop with rising flood level. Route RT-03 road washed out; water approach via Brahmaputra riverway recommended.",
-                    "confidence_pct": 98,
-                    "urgency": "CRITICAL",
+                    "evidence": assignment["reason"],
+                    "confidence_pct": zscore.confidence_pct if zscore else 50,
+                    "urgency": priority,
                     "approval_required": True,
-                    "recommended_shelter": "SH-01 Jalukbari Higher Secondary Relief Shelter"
+                    "need": need,
+                    "access": zscore.access if zscore else None,
+                    "eta_min": assignment["worst_case_eta_min"],
+                    "coverage": assignment["coverage"],
+                    "required_persons": assignment["required_persons"],
+                    "covered_persons": assignment["covered_persons"],
+                    "needs_verification": assignment["needs_verification"],
+                    "score_inputs": (zscore.components if zscore else {}),
+                    "alternatives_considered": next(
+                        (d.get("candidates_considered", []) for d in result["decision_log"]
+                         if d["task_id"] == assignment["task_id"]), []),
                 },
-                created_at=now_str,
-                status_notes="Awaiting Local Authority mission authorization. Boat trailers staging at Pandu Slipway."
+                created_at=self._now(),
+                status_notes=(
+                    f"Computed by allocation engine: ETA {assignment['worst_case_eta_min']} min, "
+                    f"coverage {int(assignment['coverage'] * 100)}%. Awaiting Local Authority."
+                ),
+            ))
+
+            if assignment["needs_verification"]:
+                self.add_audit(
+                    "ORCHESTRATOR", "VERIFICATION_RECOMMENDED",
+                    f"{mission_id} targets {assignment['zone_id']} with "
+                    f"{zscore.confidence_pct if zscore else 50}% confidence. "
+                    f"Recommend aerial verification before dispatch.", 80,
+                    "ORCHESTRATION_ENGINE",
+                )
+
+        for gap in result["unassigned"]:
+            self.add_audit(
+                "ORCHESTRATOR", "NO_RESOURCE_AVAILABLE",
+                f"{gap['task_id']} ({gap['zone_id']}) could not be tasked: {gap['reason']}",
+                60, "ORCHESTRATION_ENGINE",
             )
-            self.state.missions.append(rescue_mission)
 
         # Check if cargo mission exists
         if not any(m.id == "MSN-CARGO-01" for m in self.state.missions):
-            now_str = datetime.now(timezone.utc).isoformat()
+            now_str = self._now()
             cargo_mission = Mission(
                 id="MSN-CARGO-01",
                 title="E-CARGO Emergency Air-Drop: Trauma Packs & ORS to Chandrapur Rooftop",
@@ -155,6 +243,8 @@ class OrchestrationEngine:
                 status_notes="DRN-CG-01 payload secured at Station Alpha. Awaiting authorization."
             )
             self.state.missions.append(cargo_mission)
+
+        return self.state
 
     def approve_mission(self, mission_id: str, user_id: str = "Shri R. Baruah, IAS"):
         for m in self.state.missions:
