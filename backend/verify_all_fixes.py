@@ -96,3 +96,4 @@ assert proposals.get('ZONE_A') == ["no observation linked to this zone"]
 print("-> Proposal reasons read exactly ['no observation linked to this zone'] PASS")
 
 print("\nALL ACCEPTANCE CRITERIA VERIFIED!")
+
