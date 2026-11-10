@@ -26,6 +26,7 @@ export interface Zone {
 
 export interface PredictionInput {
   id: string;
+  zone_id?: string | null;
   source_type: string;
   source_id: string;
   timestamp: string;
@@ -203,5 +204,111 @@ export interface SharedSituationModel {
   mutual_aid_requests: MutualAidRequest[];
   recent_inputs: PredictionInput[];
   audit_log: AuditEvent[];
+}
+
+export interface EvidenceRoute {
+  access: number;
+  route_id: string | null;
+  distance_km: number | null;
+  linked_routes: number;
+  note: string;
+}
+
+export interface ConfidenceComponents {
+  mean_confidence: number;
+  staleness: number;
+  agreement: number;
+  recency: number;
+  completeness: number;
+}
+
+export interface EvidenceConfidence {
+  confidence: number;
+  components: ConfidenceComponents;
+  inputs: number;
+  note: string;
+}
+
+export interface ZoneScore {
+  zone_id: string;
+  name: string;
+  need: number;
+  confidence_pct: number;
+  uncertainty_pct: number;
+  info_value: number;
+  access: number;
+  components: {
+    exposure: number;
+    severity: number;
+    trend: number;
+    isolation: number;
+  };
+  evidence: {
+    route: EvidenceRoute;
+    confidence: EvidenceConfidence;
+    declared_uncertainty: string;
+  };
+  need_rank: number;
+  gap_rank: number;
+  action: 'DISPATCH' | 'VERIFY_THEN_DISPATCH' | 'RECON' | 'MONITOR';
+}
+
+export interface AssignedResource {
+  resource_id: string;
+  kind: string;
+  capacity: number;
+  eta_min: number;
+  distance_km: number;
+  station_access: number;
+  utility: number;
+}
+
+export interface Assignment {
+  task_id: string;
+  zone_id: string;
+  type: string;
+  resources: AssignedResource[];
+  covered_persons: number;
+  required_persons: number;
+  coverage: number;
+  worst_case_eta_min: number;
+  needs_verification: boolean;
+  reason: string;
+}
+
+export interface ReconProposal {
+  zone_id: string;
+  zone_name: string;
+  drone_id: string;
+  callsign: string;
+  info_value: number;
+  need: number;
+  confidence_pct: number;
+  expected_confidence_gain_pct: number;
+  reasons: string[];
+  rule: string;
+}
+
+export interface DerivedState {
+  version: number;
+  zones: Record<string, ZoneScore>;
+  allocation: {
+    assignments: Assignment[];
+    unassigned: { task_id: string; zone_id: string; reason: string }[];
+    decision_log: any[];
+    resources_used: number;
+  };
+  recon: {
+    proposals: ReconProposal[];
+    unflyable: { zone_id: string; reason: string }[];
+    candidates: number;
+  };
+  counts: {
+    zones: number;
+    tasks: number;
+    assigned: number;
+    unassigned: number;
+    recon_proposals: number;
+  };
 }
 

@@ -30,6 +30,10 @@
   --color-scout: #0284C7;
   --color-cargo: #EA580C;
 
+  --color-conflict: #f59e0b;
+  --color-uncertain: #a855f7;
+  --color-grounded: #10b981;
+
   --map-land: #D7DFD4;
   --map-water: #9BC3CF;
 }

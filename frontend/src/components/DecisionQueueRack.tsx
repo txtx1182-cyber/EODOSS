@@ -1,9 +1,11 @@
 import React from 'react';
-import { SharedSituationModel } from '../types/situation';
+import { SharedSituationModel, DerivedState } from '../types/situation';
 import { AlertTriangle, Clock, Check, Send, Package, X } from 'lucide-react';
+import { EvidenceChips } from './EvidenceChips';
 
 interface DecisionQueueRackProps {
   situation: SharedSituationModel;
+  derived?: DerivedState | null;
   onConfirmDisaster: () => void;
   onMonitorDisaster: () => void;
   onEscalateDisaster: () => void;
@@ -17,6 +19,7 @@ interface DecisionQueueRackProps {
 
 export const DecisionQueueRack: React.FC<DecisionQueueRackProps> = ({
   situation,
+  derived,
   onConfirmDisaster,
   onMonitorDisaster,
   onEscalateDisaster,
@@ -105,7 +108,10 @@ export const DecisionQueueRack: React.FC<DecisionQueueRackProps> = ({
             </div>
 
             <div style={{ fontSize: 13, color: '#1D252A', fontFamily: 'var(--font-body)', marginBottom: 12 }}>
-              <div><strong>Sector:</strong> {situation.alert.location_name}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                <span><strong>Sector:</strong> {situation.alert.location_name}</span>
+                <EvidenceChips zoneId={situation.alert.zone_id} derived={derived} recentInputs={situation.recent_inputs} />
+              </div>
               <div><strong>Severity:</strong> Level 3 Severe ({situation.alert.confidence_pct}% Corroborated)</div>
             </div>
 
@@ -446,7 +452,12 @@ export const DecisionQueueRack: React.FC<DecisionQueueRackProps> = ({
             </div>
 
             <div style={{ fontSize: 12, color: '#1D252A', lineHeight: 1.4 }}>
-              <div><strong>Name / ID:</strong> {selectedEntity.data.name || selectedEntity.data.title || selectedEntity.data.id}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                <span><strong>Name / ID:</strong> {selectedEntity.data.name || selectedEntity.data.title || selectedEntity.data.id}</span>
+                {selectedEntity.type === 'Zone' && (
+                  <EvidenceChips zoneId={selectedEntity.data.id} derived={derived} recentInputs={situation.recent_inputs} />
+                )}
+              </div>
               {selectedEntity.data.risk_score && <div><strong>Risk Score:</strong> {selectedEntity.data.risk_score}%</div>}
               {selectedEntity.data.population_exposed && <div><strong>Population Exposed:</strong> {selectedEntity.data.population_exposed.toLocaleString()}</div>}
               {selectedEntity.data.occupancy && <div><strong>Occupancy:</strong> {selectedEntity.data.occupancy} / {selectedEntity.data.capacity}</div>}

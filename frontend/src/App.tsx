@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { SharedSituationModel } from './types/situation';
+import { SharedSituationModel, DerivedState } from './types/situation';
 import { getInitialClientSituation } from './data/seedData';
 import { TacticalLogin } from './components/TacticalLogin';
 import { TopCommandBar } from './components/TopCommandBar';
@@ -18,6 +18,25 @@ export function App() {
   const [currentView, setCurrentView] = useState<string>('OVERVIEW');
   const [selectedEntity, setSelectedEntity] = useState<{ type: string; data: any } | null>(null);
   const [activeBoard, setActiveBoard] = useState<BoardType>(null);
+  const [derived, setDerived] = useState<DerivedState | null>(null);
+
+  const fetchDerived = async () => {
+    try {
+      const res = await fetch('http://localhost:8000/api/engine/derived');
+      if (res.ok) {
+        const d = await res.json();
+        setDerived(d);
+      }
+    } catch {
+      // Offline fallback
+    }
+  };
+
+  useEffect(() => {
+    fetchDerived();
+    const iv = setInterval(fetchDerived, 3000);
+    return () => clearInterval(iv);
+  }, []);
 
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -529,6 +548,7 @@ export function App() {
         <aside style={{ height: '100%' }}>
           <DecisionQueueRack
             situation={situation}
+            derived={derived}
             onConfirmDisaster={handleConfirmDisaster}
             onMonitorDisaster={handleMonitorDisaster}
             onEscalateDisaster={handleEscalateDisaster}
