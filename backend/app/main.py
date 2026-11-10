@@ -8,9 +8,10 @@ import json
 import os
 from datetime import datetime, timezone
 
-from app.models import SharedSituationModel, AuditEvent
+from app.models import SharedSituationModel, AuditEvent, PredictionInput
 from app.seed_data import get_initial_situation
 from app.orchestration import OrchestrationEngine
+from app.adapters import FEEDS, fetch_open_meteo
 from app.engine.recompute import derive, diff, audit_events
 
 app = FastAPI(
@@ -126,6 +127,26 @@ def login_step2(req: LoginStep2Request):
 @app.get("/api/situation")
 def get_situation():
     return current_situation
+
+@app.get("/api/ingest/feeds")
+def ingest_feeds():
+    return FEEDS
+
+@app.post("/api/ingest/refresh")
+async def ingest_refresh():
+    sample = fetch_open_meteo(current_situation.zones)
+    if sample is None:
+        return {"ingested": False, "degraded": True, "feeds": FEEDS}
+    try:
+        current_situation.recent_inputs.insert(0, PredictionInput(**sample))
+    except Exception as exc:
+        return {"ingested": False, "degraded": True, "error": str(exc), "feeds": FEEDS}
+    engine.add_audit("PREDICTION", "LIVE_FEED_INGESTED",
+                     f"Open-Meteo rainfall ingested for {sample.get('zone_id')}: "
+                     f"{sample.get('reading_value')}", 85, "ADAPTER")
+    _recompute()
+    await broadcast_situation()
+    return {"ingested": True, "degraded": False, "feeds": FEEDS}
 
 @app.post("/api/situation/reset")
 async def reset_situation():
