@@ -9,6 +9,7 @@ from app.models import (
 )
 from app.engine.scoring import score_scene, access_at
 from app.engine.allocation import plan, tasks_from_incidents
+from app.engine.recon import propose as propose_recon
 
 class OrchestrationEngine:
     def __init__(self, state: SharedSituationModel):
@@ -73,52 +74,128 @@ class OrchestrationEngine:
         self.add_audit("ORCHESTRATOR", "ESCALATION_TRIGGERED", "Local 5-minute review window elapsed without sign-off while risk remains severe (88%). Escalated to District Authority.", 95, user_id)
         return self.state
 
-    def dispatch_reconnaissance(self, drone_id: str = "DRN-SC-01", target_zone: str = "ZONE_F"):
-        now_str = datetime.now(timezone.utc).isoformat()
+    def dispatch_reconnaissance(self, zone_id: str = "ZONE_F",
+                                drone_id: str = "DRN-SC-01"):
+        """
+        Dispatch is authorised only if the zone is either
+          (a) an active engine proposal, or
+          (b) already covered by an approved/pending recon mission.
+        """
+        scores = self._scores()
+        proposals = propose_recon(scores, self.state.drones, self.state.missions,
+                                  self.state.recent_inputs)["proposals"]
+        by_zone = {p["zone_id"]: p for p in proposals}
+
+        existing = next((m for m in self.state.missions
+                         if m.type == MissionType.RECONNAISSANCE
+                         and m.target_zone_id == zone_id
+                         and m.approval_state in (
+                             MissionApprovalState.PROPOSED,
+                             MissionApprovalState.AWAITING_APPROVAL,
+                             MissionApprovalState.APPROVED)), None)
+
+        if zone_id not in by_zone and existing is None:
+            raise ValueError(f"No active recon proposal for {zone_id}")
+
         drone = next((d for d in self.state.drones if d.id == drone_id), None)
         if not drone:
             raise ValueError(f"Drone {drone_id} not found")
-        
-        # Conflict check
         if drone.status == DroneStatus.MISSION_ACTIVE:
-            self.add_audit("ORCHESTRATOR", "CONFLICT_PREVENTED", f"Conflict check blocked dispatch: {drone.callsign} already assigned to an active flight.", 100, "SAFETY_GATE")
+            self.add_audit(
+                "ORCHESTRATOR", "CONFLICT_PREVENTED",
+                f"Conflict check blocked dispatch: {drone.callsign} already assigned "
+                f"to an active flight.", 100, "SAFETY_GATE",
+            )
             return self.state
 
+        proposal = by_zone.get(zone_id)
+        mission = existing
+        if mission is None:
+            mission = Mission(
+                id=f"MSN-REC-{len([m for m in self.state.missions if m.type == MissionType.RECONNAISSANCE]) + 1:02d}",
+                title=f"E-SCOUT Reconnaissance: resolve information gap at {zone_id}",
+                type=MissionType.RECONNAISSANCE,
+                priority="URGENT" if proposal["info_value"] >= 55 else "HIGH",
+                target_zone_id=zone_id,
+                target_coords=list(self._zone(zone_id).center),
+                assigned_resources=[drone_id],
+                approval_state=MissionApprovalState.AWAITING_APPROVAL,
+                explanation={
+                    "evidence": "; ".join(proposal["reasons"]),
+                    "rule": proposal["rule"],
+                    "info_value": proposal["info_value"],
+                    "need": proposal["need"],
+                    "confidence_pct": proposal["confidence_pct"],
+                    "expected_confidence_gain_pct": proposal["expected_confidence_gain_pct"],
+                    "approval_required": True,
+                },
+                created_at=self._now(),
+                status_notes="Proposed by uncertainty rule; dispatch supervised.",
+            )
+            self.state.missions.append(mission)
+        else:
+            mission.approval_state = MissionApprovalState.ACTIVE
+
         drone.status = DroneStatus.MISSION_ACTIVE
-        drone.current_mission_id = "MSN-REC-01"
-        
-        # Update mission state
-        for m in self.state.missions:
-            if m.id == "MSN-REC-01":
-                m.approval_state = MissionApprovalState.ACTIVE
-                m.status_notes = f"In flight over {target_zone}. Telemetry live via 5.8GHz tactical mesh."
-        
-        self.add_audit("E-SWARM", "RECON_DISPATCHED", f"{drone.callsign} launched from Station Alpha to {target_zone}. Optical and FLIR telemetry streaming.", 98, "E_SWARM_CONTROLLER")
-        
-        # Simulate drone discovery updating shared state
-        self._simulate_drone_recon_findings()
+        drone.current_mission_id = mission.id
+        drone.last_telemetry_time = self._now()
+
+        self.add_audit(
+            "E-SWARM", "RECON_DISPATCHED",
+            f"{drone.callsign} launched to {zone_id}. "
+            + (f"Rule: {proposal['rule']}. " if proposal else "Pre-existing authorised mission. ")
+            + "Optical and FLIR telemetry streaming.", 98, "E_SWARM_CONTROLLER",
+        )
+
+        self._apply_recon_effect(zone_id)
         return self.state
 
-    def _simulate_drone_recon_findings(self):
-        # 1. Update Route RT-03 with high confidence drone verification
-        for r in self.state.routes:
-            if r.id == "RT-03":
-                r.status = RouteStatus.BLOCKED
-                r.access_score = 5
-                r.source = "E-SCOUT-01 High-Res 4K Optical Feed"
-                r.freshness_min = 1
-                r.confidence_pct = 99
-                r.notes = "VERIFIED BLOCKED: 15-meter embankment breach with torrential flow. Wheeled access completely cut off."
-        
-        # 2. Update Incident INC-01
-        for inc in self.state.incidents:
-            if inc.id == "INC-01":
-                inc.status = IncidentStatus.VERIFIED_TARGET
-                inc.confidence_pct = 98
-                inc.verified_by = "E-SCOUT-01 Computer Vision + Operator Sign-off"
-        
-        self.add_audit("ORCHESTRATOR", "REPLANNING_TRIGGERED", "New drone telemetry received: Route RT-03 verified BLOCKED. Incident INC-01 upgraded to VERIFIED_TARGET. Recalculating E-RESQ boat routes and E-CARGO airdrop priorities.", 98, "ORCHESTRATION_ENGINE")
-        self._generate_rescue_missions()
+    def _apply_recon_effect(self, zone_id: str):
+        """
+        The flight returns evidence. It does NOT declare a road blocked — that is
+        an operator decision. Confidence and freshness change; status does not.
+        """
+        zone = self._zone(zone_id)
+        if zone is None:
+            return self.state
+
+        now_str = self._now()
+        samples = [
+            ("DRONE_TELEMETRY", "water_level", "Direct water depth sounding at 1.4 m", 97),
+            ("DRONE_TELEMETRY", "inundation_extent", "4K optical extent polygon captured", 95),
+            ("DRONE_TELEMETRY", "route_access", "Approach corridor visually inspected", 93),
+        ]
+        for source, metric, reading, conf in samples:
+            self.state.recent_inputs.insert(0, PredictionInput(
+                id=f"INP-{len(self.state.recent_inputs) + 1:03d}",
+                zone_id=zone_id,
+                source_type=source,
+                source_id="E-SCOUT-01-4K-OPTICAL",
+                timestamp=now_str,
+                freshness_min=1,
+                confidence_pct=conf,
+                metric_name=metric,
+                reading_value=reading,
+                status="VERIFIED",
+                location_desc=f"{zone_id} aerial observation",
+            ))
+
+        ra = access_at(zone.center, self.state.routes)
+        if ra.get("route_id"):
+            for r in self.state.routes:
+                if r.id == ra["route_id"]:
+                    r.freshness_min = 1
+                    r.confidence_pct = max(r.confidence_pct, 99)
+                    r.source = r.source if "E-SCOUT" in r.source else f"{r.source} + E-SCOUT-01"
+                    break
+
+        self.add_audit(
+            "E-SWARM", "RECON_TELEMETRY_RECEIVED",
+            f"3 verified observations received for {zone_id}; freshness reset to 1 min. "
+            f"Route status unchanged — verification of closure remains an operator decision.",
+            97, "E_SWARM_CONTROLLER",
+        )
+        return self.state
 
     def _generate_rescue_missions(self):
         """

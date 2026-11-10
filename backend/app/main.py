@@ -82,7 +82,8 @@ class MissionActionRequest(BaseModel):
 
 class ReconRequest(BaseModel):
     drone_id: str = "DRN-SC-01"
-    target_zone: str = "ZONE_F"
+    zone_id: Optional[str] = None
+    target_zone: Optional[str] = None
 
 class MutualAidActionRequest(BaseModel):
     request_id: str = "REQ-MA-001"
@@ -159,7 +160,13 @@ async def escalate_alert(req: DecisionRequest):
 
 @app.post("/api/missions/recon")
 async def dispatch_recon(req: ReconRequest):
-    engine.dispatch_reconnaissance(drone_id=req.drone_id, target_zone=req.target_zone)
+    target = req.zone_id or req.target_zone
+    if not target:
+        raise HTTPException(status_code=400, detail="zone_id or target_zone required")
+    try:
+        engine.dispatch_reconnaissance(zone_id=target, drone_id=req.drone_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     _recompute()
     await broadcast_situation()
     return current_situation
