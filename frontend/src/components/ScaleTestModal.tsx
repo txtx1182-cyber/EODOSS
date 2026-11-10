@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Play, Activity } from 'lucide-react';
+import { API } from '../api';
 
 interface SimulationResult {
   seed: number;
@@ -36,7 +37,7 @@ export const ScaleTestModal: React.FC<ScaleTestModalProps> = ({ isOpen, onClose 
   const fetchSimulation = async (s: number = 7) => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/engine/simulation?seed=${s}`);
+      const res = await fetch(API(`engine/simulation?seed=${s}`));
       if (res.ok) {
         const json = await res.json();
         setData(json);

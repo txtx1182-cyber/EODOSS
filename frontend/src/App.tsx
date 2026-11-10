@@ -12,6 +12,7 @@ import { SuppView } from './components/views/SuppView';
 import { SwarmView } from './components/views/SwarmView';
 import { AuditLogView } from './components/views/AuditLogView';
 import { ScaleTestModal } from './components/ScaleTestModal';
+import { API, WS_URL } from './api';
 
 export function App() {
   const [user, setUser] = useState<{ name: string; role: string; station: string } | null>(null);
@@ -24,7 +25,7 @@ export function App() {
 
   const fetchDerived = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/engine/derived');
+      const res = await fetch(API('engine/derived'));
       if (res.ok) {
         const d = await res.json();
         setDerived(d);
@@ -48,7 +49,7 @@ export function App() {
 
     let socket: WebSocket | null = null;
     try {
-      socket = new WebSocket('ws://localhost:8000/ws/live');
+      socket = new WebSocket(WS_URL);
       wsRef.current = socket;
 
       socket.onmessage = (event) => {
@@ -109,7 +110,7 @@ export function App() {
   // REST API trigger helper with local fallback
   const callBackend = async (endpoint: string, payload: any) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/${endpoint}`, {
+      const res = await fetch(API(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -236,10 +237,11 @@ export function App() {
   };
 
   // Phase 14: E-SCOUT Drone Reconnaissance Dispatch
-  const handleDispatchRecon = async () => {
+  const handleDispatchRecon = async (zoneId?: string, droneId?: string) => {
+    const target = zoneId || 'ZONE_F';
     const ok = await callBackend('missions/recon', {
-      drone_id: 'DRN-SC-01',
-      target_zone: 'ZONE_F'
+      zone_id: target,
+      drone_id: droneId || 'DRN-SC-01'
     });
 
     if (!ok) {
@@ -317,6 +319,7 @@ export function App() {
         };
       });
     }
+    fetchDerived();
   };
 
   // Phase 10 / 15: Approve Rescue or Cargo Mission

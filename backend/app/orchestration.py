@@ -14,7 +14,9 @@ from app.engine.recon import propose as propose_recon
 class OrchestrationEngine:
     def __init__(self, state: SharedSituationModel):
         self.state = state
-        self._generate_rescue_missions()
+        # Missions are generated only after the Local Authority confirms.
+        if self.state.alert.lifecycle == AlertLifecycle.CONFIRMED:
+            self._generate_rescue_missions()
 
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat()

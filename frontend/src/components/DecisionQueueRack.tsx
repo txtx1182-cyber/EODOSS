@@ -10,7 +10,7 @@ interface DecisionQueueRackProps {
   onConfirmDisaster: () => void;
   onMonitorDisaster: () => void;
   onEscalateDisaster: () => void;
-  onDispatchRecon: () => void;
+  onDispatchRecon: (zoneId?: string, droneId?: string) => void;
   onApproveMission: (missionId: string) => void;
   onExecuteCargoDrop: (missionId: string) => void;
   onApproveMutualAid: (requestId: string) => void;
@@ -254,6 +254,110 @@ export const DecisionQueueRack: React.FC<DecisionQueueRackProps> = ({
 
         {/* DECISION QUADRANT (2x2 ENGINE) */}
         <DecisionQuadrant derived={derived} onSelectZone={onSelectZone} />
+
+        {/* RECOMMENDED RECONNAISSANCE (ENGINE PROPOSALS) */}
+        {derived?.recon?.proposals && derived.recon.proposals.length > 0 && (
+          <div style={{
+            backgroundColor: '#FFFEFA',
+            border: '1px solid var(--color-conflict, #f59e0b)',
+            borderRadius: 6,
+            padding: 12,
+            boxShadow: '0 1px 4px rgba(245, 158, 11, 0.08)'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: 8,
+              borderBottom: '1px solid #F3F4F6',
+              paddingBottom: 4
+            }}>
+              <span style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: 11.5,
+                fontWeight: 700,
+                color: '#92400E',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em'
+              }}>
+                Recommended Reconnaissance
+              </span>
+              <span style={{
+                fontSize: 10,
+                fontFamily: 'var(--font-mono)',
+                backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                color: '#92400E',
+                padding: '1px 6px',
+                borderRadius: 10,
+                fontWeight: 600
+              }}>
+                {derived.recon.proposals.length} active
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {derived.recon.proposals.map(p => (
+                <div key={p.zone_id} style={{
+                  backgroundColor: '#FFFDF9',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: 4,
+                  padding: 8
+                }}>
+                  <div style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    fontFamily: 'var(--font-heading)',
+                    color: '#1D252A',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <span>
+                      {p.zone_id} · need {p.need.toFixed(1)} · confidence {p.confidence_pct.toFixed(1)}% · info {p.info_value.toFixed(1)}
+                    </span>
+                  </div>
+
+                  {p.reasons && p.reasons.length > 0 && (
+                    <div style={{
+                      fontSize: 11,
+                      color: '#5A656E',
+                      marginTop: 4,
+                      marginBottom: 6,
+                      fontFamily: 'var(--font-body)',
+                      lineHeight: 1.3
+                    }}>
+                      {p.reasons.join(' · ')}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => onDispatchRecon(p.zone_id, p.drone_id || undefined)}
+                    style={{
+                      width: '100%',
+                      padding: '5px 10px',
+                      backgroundColor: '#2458A6',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: 4,
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      fontFamily: 'var(--font-heading)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 4
+                    }}
+                    className="civic-button-primary"
+                  >
+                    <Send size={12} />
+                    <span>Dispatch {p.callsign || 'Drone'}</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ACTIVE DIRECTIVES & MISSION AUTHORIZATIONS */}
         {isConfirmed && (

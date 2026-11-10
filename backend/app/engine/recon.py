@@ -21,8 +21,12 @@ def _s(value: Any) -> str:
 
 def _why(score) -> List[str]:
     """Human-readable reasons, drawn from the same components the UI shows."""
+    conf = score.evidence.get("confidence") or {}
+    if conf.get("inputs", 0) == 0:
+        return ["no observation linked to this zone"]
+
     reasons = []
-    comps = (score.evidence.get("confidence") or {}).get("components", {})
+    comps = conf.get("components", {})
     if comps.get("staleness", 1) < 0.5:
         reasons.append("evidence is older than one half-life")
     if comps.get("agreement", 1) < 0.8:
