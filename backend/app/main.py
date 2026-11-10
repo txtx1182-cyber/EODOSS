@@ -195,7 +195,10 @@ async def dispatch_recon(req: ReconRequest):
 
 @app.post("/api/missions/approve")
 async def approve_mission(req: MissionActionRequest):
-    engine.approve_mission(mission_id=req.mission_id, user_id=req.user_id)
+    try:
+        engine.approve_mission(mission_id=req.mission_id, user_id=req.user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     _recompute()
     await broadcast_situation()
     return current_situation

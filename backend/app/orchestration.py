@@ -326,6 +326,8 @@ class OrchestrationEngine:
     def approve_mission(self, mission_id: str, user_id: str = "Shri R. Baruah, IAS"):
         for m in self.state.missions:
             if m.id == mission_id:
+                if m.approval_state in (MissionApprovalState.APPROVED, MissionApprovalState.ACTIVE, MissionApprovalState.COMPLETED):
+                    raise ValueError(f"Mission {mission_id} is already approved")
                 m.approval_state = MissionApprovalState.APPROVED
                 m.status_notes = f"Authorized by {user_id}. Field units en route."
                 
