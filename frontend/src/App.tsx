@@ -12,6 +12,17 @@ import { SuppView } from './components/views/SuppView';
 import { SwarmView } from './components/views/SwarmView';
 import { AuditLogView } from './components/views/AuditLogView';
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+
+function getWebSocketUrl() {
+  const configuredUrl = import.meta.env.VITE_WS_BASE_URL;
+  if (configuredUrl) return `${configuredUrl.replace(/\/$/, '')}/ws/live`;
+
+  const url = new URL('/ws/live', window.location.href);
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  return url.toString();
+}
+
 export function App() {
   const [user, setUser] = useState<{ name: string; role: string; station: string } | null>(null);
   const [situation, setSituation] = useState<SharedSituationModel>(getInitialClientSituation());
@@ -21,13 +32,13 @@ export function App() {
 
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Connect to FastAPI WebSocket for real-time live synchronization
+  // Connect to the same host serving the app. Vite proxies /ws during local development.
   useEffect(() => {
     if (!user) return;
 
     let socket: WebSocket | null = null;
     try {
-      socket = new WebSocket('ws://localhost:8000/ws/live');
+      socket = new WebSocket(getWebSocketUrl());
       wsRef.current = socket;
 
       socket.onmessage = (event) => {
@@ -37,7 +48,7 @@ export function App() {
             setSituation(data);
           }
         } catch {
-          // ignore keepalive
+          // Ignore keepalive messages.
         }
       };
 
@@ -50,6 +61,7 @@ export function App() {
 
     return () => {
       if (socket) socket.close();
+      if (wsRef.current === socket) wsRef.current = null;
     };
   }, [user]);
 
@@ -88,7 +100,7 @@ export function App() {
   // REST API trigger helper with local fallback
   const callBackend = async (endpoint: string, payload: any) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/${endpoint}`, {
+      const res = await fetch(`${API_BASE_URL}/api/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -99,7 +111,7 @@ export function App() {
         return true;
       }
     } catch {
-      // Backend not running, use client-side state transition
+      // Backend unavailable: use the client-side simulation fallback.
     }
     return false;
   };
