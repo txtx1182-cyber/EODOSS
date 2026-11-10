@@ -2,6 +2,7 @@ import React from 'react';
 import { SharedSituationModel, DerivedState } from '../types/situation';
 import { AlertTriangle, Clock, Check, Send, Package, X } from 'lucide-react';
 import { EvidenceChips } from './EvidenceChips';
+import { DecisionQuadrant } from './DecisionQuadrant';
 
 interface DecisionQueueRackProps {
   situation: SharedSituationModel;
@@ -15,6 +16,7 @@ interface DecisionQueueRackProps {
   onApproveMutualAid: (requestId: string) => void;
   selectedEntity: { type: string; data: any } | null;
   onClearSelection: () => void;
+  onSelectZone?: (zoneId: string) => void;
 }
 
 export const DecisionQueueRack: React.FC<DecisionQueueRackProps> = ({
@@ -28,7 +30,8 @@ export const DecisionQueueRack: React.FC<DecisionQueueRackProps> = ({
   onExecuteCargoDrop,
   onApproveMutualAid,
   selectedEntity,
-  onClearSelection
+  onClearSelection,
+  onSelectZone
 }) => {
   const isPendingReview = situation.alert.lifecycle === 'PENDING_LOCAL_REVIEW';
   const isConfirmed = situation.alert.lifecycle === 'CONFIRMED' || situation.alert.lifecycle === 'ACTIVE_RESPONSE';
@@ -248,6 +251,9 @@ export const DecisionQueueRack: React.FC<DecisionQueueRackProps> = ({
             </p>
           </div>
         )}
+
+        {/* DECISION QUADRANT (2x2 ENGINE) */}
+        <DecisionQuadrant derived={derived} onSelectZone={onSelectZone} />
 
         {/* ACTIVE DIRECTIVES & MISSION AUTHORIZATIONS */}
         {isConfirmed && (

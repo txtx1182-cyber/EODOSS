@@ -558,6 +558,12 @@ export function App() {
             onApproveMutualAid={handleApproveMutualAid}
             selectedEntity={selectedEntity}
             onClearSelection={() => setSelectedEntity(null)}
+            onSelectZone={(zoneId) => {
+              const zone = situation.zones.find(z => z.id === zoneId);
+              if (zone) {
+                setSelectedEntity({ type: 'Zone', data: zone });
+              }
+            }}
           />
         </aside>
       </div>

@@ -253,6 +253,8 @@ export interface ZoneScore {
   action: 'DISPATCH' | 'VERIFY_THEN_DISPATCH' | 'RECON' | 'MONITOR';
 }
 
+export type DerivedZone = ZoneScore;
+
 export interface AssignedResource {
   resource_id: string;
   kind: string;
