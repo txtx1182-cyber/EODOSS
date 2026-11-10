@@ -530,6 +530,7 @@ def get_initial_situation() -> SharedSituationModel:
     recent_inputs = [
         PredictionInput(
             id="INP-01",
+            zone_id="ZONE_D",
             source_type="RIVER_GAUGE",
             source_id="CWC-PANDU-GAUGE",
             timestamp=now_str,
@@ -542,6 +543,7 @@ def get_initial_situation() -> SharedSituationModel:
         ),
         PredictionInput(
             id="INP-02",
+            zone_id="ZONE_B",
             source_type="WEATHER_RADAR",
             source_id="IMD-DOPPLER-GHY",
             timestamp=now_str,
@@ -554,6 +556,7 @@ def get_initial_situation() -> SharedSituationModel:
         ),
         PredictionInput(
             id="INP-03",
+            zone_id="ZONE_F",
             source_type="LISS4_SATELLITE",
             source_id="ISRO-LISS4-SCENE-2884",
             timestamp=now_str,
@@ -566,6 +569,7 @@ def get_initial_situation() -> SharedSituationModel:
         ),
         PredictionInput(
             id="INP-04",
+            zone_id="ZONE_F",
             source_type="DRONE_TELEMETRY",
             source_id="E-SCOUT-01-FLIR",
             timestamp=now_str,

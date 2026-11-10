@@ -8,9 +8,10 @@ import json
 import os
 from datetime import datetime, timezone
 
-from app.models import SharedSituationModel
+from app.models import SharedSituationModel, AuditEvent
 from app.seed_data import get_initial_situation
 from app.orchestration import OrchestrationEngine
+from app.engine.recompute import derive, diff, audit_events
 
 app = FastAPI(
     title="EODOSS Engine",
@@ -30,6 +31,20 @@ app.add_middleware(
 # Global in-memory situation state and engine
 current_situation: SharedSituationModel = get_initial_situation()
 engine = OrchestrationEngine(current_situation)
+
+_derived: dict = {}
+_prev_derived: dict = {}
+
+def _recompute():
+    global _derived, _prev_derived
+    _prev_derived, _derived = _derived, derive(current_situation)
+    for ev in audit_events(diff(_prev_derived, _derived)):
+        ev["id"] = f"AUD-{len(current_situation.audit_log) + 1:03d}"
+        ev["timestamp"] = datetime.now(timezone.utc).isoformat()
+        current_situation.audit_log.insert(0, AuditEvent(**ev))
+
+# Initialize derived state on module load
+_recompute()
 
 # Connected WebSocket clients
 active_websockets: List[WebSocket] = []
@@ -113,53 +128,74 @@ def get_situation():
 
 @app.post("/api/situation/reset")
 async def reset_situation():
-    global current_situation, engine
+    global current_situation, engine, _derived, _prev_derived
     current_situation = get_initial_situation()
     engine = OrchestrationEngine(current_situation)
+    _derived, _prev_derived = {}, {}
+    _recompute()
     await broadcast_situation()
     return current_situation
 
 @app.post("/api/alert/confirm")
 async def confirm_alert(req: DecisionRequest):
     engine.confirm_disaster(user_id=req.user_id, notes=req.notes or "Corroborated across 4 sensor streams.")
+    _recompute()
     await broadcast_situation()
     return current_situation
 
 @app.post("/api/alert/monitor")
 async def monitor_alert(req: DecisionRequest):
     engine.reject_or_monitor(user_id=req.user_id, action=req.action or "MONITORING", notes=req.notes or "Monitoring river level rise.")
+    _recompute()
     await broadcast_situation()
     return current_situation
 
 @app.post("/api/alert/escalate")
 async def escalate_alert(req: DecisionRequest):
     engine.escalate_to_district(user_id=req.user_id)
+    _recompute()
     await broadcast_situation()
     return current_situation
 
 @app.post("/api/missions/recon")
 async def dispatch_recon(req: ReconRequest):
     engine.dispatch_reconnaissance(drone_id=req.drone_id, target_zone=req.target_zone)
+    _recompute()
     await broadcast_situation()
     return current_situation
 
 @app.post("/api/missions/approve")
 async def approve_mission(req: MissionActionRequest):
     engine.approve_mission(mission_id=req.mission_id, user_id=req.user_id)
+    _recompute()
     await broadcast_situation()
     return current_situation
 
 @app.post("/api/missions/cargo-drop")
 async def cargo_drop(req: MissionActionRequest):
     engine.execute_cargo_drop(mission_id=req.mission_id)
+    _recompute()
     await broadcast_situation()
     return current_situation
 
 @app.post("/api/mutual-aid/approve")
 async def approve_mutual_aid(req: MutualAidActionRequest):
     engine.approve_mutual_aid(request_id=req.request_id, user_id=req.user_id)
+    _recompute()
     await broadcast_situation()
     return current_situation
+
+@app.get("/api/engine/derived")
+def get_derived():
+    return _derived
+
+@app.post("/api/engine/recompute")
+async def recompute_now():
+    before = _prev_derived
+    _recompute()
+    changes = diff(before, _derived)
+    await broadcast_situation()
+    return {"changes": changes, "counts": _derived["counts"]}
 
 @app.websocket("/ws/live")
 async def websocket_endpoint(websocket: WebSocket):

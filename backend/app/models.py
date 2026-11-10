@@ -101,6 +101,7 @@ class PredictionInput(BaseModel):
     reading_value: str
     status: str # "VERIFIED", "UNVERIFIED", "STALE", "DISPUTED"
     location_desc: str
+    zone_id: Optional[str] = None
 
 class Alert(BaseModel):
     id: str
